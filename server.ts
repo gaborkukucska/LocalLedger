@@ -12,7 +12,7 @@ import Fuse from 'fuse.js';
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
   
   const KNOWLEDGE_DIR = path.join(process.cwd(), 'data', 'knowledge');
   if (!fs.existsSync(KNOWLEDGE_DIR)) {
