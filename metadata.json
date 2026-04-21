@@ -1,0 +1,6 @@
+{
+  "name": "LocaLedger",
+  "description": "On-premise, secure, and expandable bookkeeping software with local LLM integration for automated transaction categorization and Australian tax reporting (BAS).",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
