@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Transaction } from '../lib/db.ts';
+import { Transaction } from '../lib/sqlite_db.ts';
 import { Check, Edit2, Shield, MoreVertical } from 'lucide-react';
 
 interface TransactionsProps {

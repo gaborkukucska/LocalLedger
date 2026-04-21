@@ -21,7 +21,7 @@ import {
   Globe
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Transaction, LearningRule, BankAccount, User, TaxIdentity, IdentityType, AccountingMethod, InventoryItem } from './lib/db.ts';
+import { Transaction, LearningRule, BankAccount, User, TaxIdentity, IdentityType, AccountingMethod, InventoryItem } from './lib/sqlite_db.ts';
 
 // View Components
 import Dashboard from './components/Dashboard.tsx';

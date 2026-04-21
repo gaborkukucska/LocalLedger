@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Transaction, AccountingMethod } from '../lib/db.ts';
+import { Transaction, AccountingMethod } from '../lib/sqlite_db.ts';
 import { accounting, BASReport } from '../lib/accounting.ts';
 import { Download, FileCheck, Printer } from 'lucide-react';
 

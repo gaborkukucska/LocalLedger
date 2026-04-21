@@ -12,7 +12,7 @@ import {
   Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { InventoryItem } from '../lib/db.ts';
+import { InventoryItem } from '../lib/sqlite_db.ts';
 
 interface InventoryProps {
   userId: string;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Transaction } from '../lib/db.ts';
+import { Transaction } from '../lib/sqlite_db.ts';
 import { 
   TrendingUp, 
   TrendingDown, 

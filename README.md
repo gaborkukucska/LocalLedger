@@ -2,12 +2,12 @@
 
 **The Private, AI-Powered Offline Accountant for Australian Small Businesses** 🚀
 
-LocaLedger is an open-source, local-first bookkeeping tool designed explicitly for freelancers, sole traders, and family households. By leveraging powerful local AI models (via Ollama) or hosted APIs (Gemini) alongside local SQLite column-level encryption, LocaLedger guarantees that your sensitive financial data **never leaves your machine** unless you explicitly allow it.
+LocaLedger is an open-source, local-first bookkeeping tool designed explicitly for freelancers, sole traders, and family households. By leveraging powerful local AI models (via Ollama) alongside local SQLite column-level encryption, LocaLedger guarantees that your sensitive financial data **never leaves your machine** natively!
 
 ## ✨ Features
 
-- **🛡️ 100% Local-First & Encrypted**: Your data is stored securely in a local `SQLite` database with AES-256 column-level encryption. No cloud, no subscription fees, no data harvesting.
-- **🤖 Private AI Accountant**: Powered by [Ollama](https://ollama.com) (or Gemini), the built-in conversational AI analyzes transactions, suggests categorization rules, and acts as your personal financial advisor using strict local RAG (Retrieval-Augmented Generation) running on `fuse.js`.
+- **🛡️ 100% Local-First & Encrypted**: Your data is stored securely in a local `SQLite` database with AES-256 column-level encryption. A master key is generated and stored locally on first install. No cloud, no subscription fees, no data harvesting.
+- **🤖 Private AI Accountant**: Powered by [Ollama](https://ollama.com), the built-in conversational AI analyzes transactions, suggests categorization rules, and acts as your personal financial advisor using strict local RAG (Retrieval-Augmented Generation) running on `fuse.js`.
 - **🗂️ Multi-Identity Architecture**: Manage multiple Tax Identities (Personal, Sole Trader, Company), each securely segregated so your household and business finances never mix.
 - **🏦 CSV Bank Imports**: Import arbitrary bank statements. The AI evaluates mapping and auto-applies customized Learning Rules to categorize hundreds of rows instantly.
 - **⚡ Bulk Reconciliation & BAS**: Reconcile items efficiently with built-in ATO (Australian Tax Office) logic determining your GST calculations automatically.
@@ -39,13 +39,10 @@ If you want to run LocaLedger natively without Docker:
    ```bash
    npm install
    ```
-3. Establish your encryption parameters via a `.env` file:
+3. Establish your `.env` file (if deploying natively):
    ```env
-   # IMPORTANT: DB_ENCRYPTION_KEY must be exactly 32 bytes for AES-256
-   DB_ENCRYPTION_KEY=supersecretkey_change_me_in_prod_!
-   
-   # Optional: Provide Gemini API Key to upgrade your AI Accountant capabilities
-   GEMINI_API_KEY=your_google_ai_key
+   # OLLAMA URL: Set your local endpoint natively
+   OLLAMA_URL=http://localhost:11434
    ```
 4. Start the development server:
    ```bash

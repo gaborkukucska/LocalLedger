@@ -34,7 +34,7 @@ For all authenticated endpoints, the following custom headers are heavily enforc
 - `PATCH /api/transactions/:id` : Used for editing `status` (pending → reconciled) or overriding the `category`. Triggers an internal Database audit log trace.
 
 ### 4. Advanced AI & Conversational Search (RAG)
-- `POST /api/ai/chat` : Primary conversational backbone. Triggers Gemini 3.1 Flash or an `Ollama` fallback payload evaluated with historical `ledger` and `Rules` context.
+- `POST /api/ai/chat` : Primary conversational backbone. Triggers `Ollama` natively evaluated with historical `ledger` and `Rules` context.
 - `GET /api/knowledge` : Fetch system-indexed RAG embeddings and knowledge base `.md` context items.
 - `POST /api/knowledge/upload` : Drag and drop external `.txt`/`.md` files straight to your AI context cache.
 - `POST /api/ollama` : Standard text generation bridge used safely decoupled from public APIs.
@@ -47,4 +47,4 @@ For all authenticated endpoints, the following custom headers are heavily enforc
 ---
 
 ## Environment & Security Flags
-If `DB_ENCRYPTION_KEY` is present inside your Environment block (or `.env`), LocaLedger will aggressively convert Strings and Numbers targeting the DB using CBC padding mechanics. Changing the environment seed _after_ running your service will cause previously stored records to render as null.
+At launch time, an automated `data/master.key` crypto hash payload is dynamically stored offline inside the app ecosystem protecting SQLite binaries safely behind uncrackable CBC sequences natively without environment variable requirements.

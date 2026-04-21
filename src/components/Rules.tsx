@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BrainCircuit, Sparkles, Plus, Trash2 } from 'lucide-react';
-import { LearningRule } from '../lib/db.ts';
+import { LearningRule } from '../lib/sqlite_db.ts';
 
 interface RulesProps {
   rules: LearningRule[];

@@ -19,6 +19,10 @@ export enum LogLevel {
 
 export const logger = {
   log: (level: LogLevel, message: string, data?: any) => {
+    if (level === LogLevel.DEBUG && process.env.DEBUG !== 'true') {
+      return; // Skip debug logs unless explicitly enabled
+    }
+
     const timestamp = new Date().toISOString();
     const entry = `[${timestamp}] [${level}] ${message} ${data ? JSON.stringify(data) : ''}\n`;
     

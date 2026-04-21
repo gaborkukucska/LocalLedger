@@ -7,17 +7,39 @@ import { logger } from './logger.ts';
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json'); // Legacy
 const SQLITE_FILE = path.join(DATA_DIR, 'localedger.db');
-const ENCRYPTION_KEY = process.env.DB_ENCRYPTION_KEY;
-const IV_LENGTH = 16;
+const KEY_FILE = path.join(DATA_DIR, 'master.key');
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
+// Ensure local encryption key exists
+let ENCRYPTION_KEY: Buffer | undefined;
+
+try {
+  let rawKey = '';
+  if (fs.existsSync(KEY_FILE)) {
+    rawKey = fs.readFileSync(KEY_FILE, 'utf-8').trim();
+  } else {
+    // Generate secure local key at install time if not configured
+    rawKey = crypto.randomBytes(32).toString('hex');
+    fs.writeFileSync(KEY_FILE, rawKey, 'utf-8');
+    logger.info('Generated new local master.key for SQLite database encryption.');
+  }
+
+  // Safely ensure the key is always 32 bytes by hashing the input using SHA-256
+  // This supports users manually swapping the target master.key string securely
+  ENCRYPTION_KEY = crypto.createHash('sha256').update(rawKey).digest();
+} catch (err) {
+  logger.error('Failed to initialize local encryption key', err);
+}
+
+const IV_LENGTH = 16;
+
 function encrypt(text: string) {
   if (!ENCRYPTION_KEY) return text;
   const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
+  const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
   let encrypted = cipher.update(text);
   encrypted = Buffer.concat([encrypted, cipher.final()]);
   return iv.toString('hex') + ':' + encrypted.toString('hex');
@@ -29,7 +51,7 @@ function decrypt(text: string) {
     const textParts = text.split(':');
     const iv = Buffer.from(textParts.shift()!, 'hex');
     const encryptedText = Buffer.from(textParts.join(':'), 'hex');
-    const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
+    const decipher = crypto.createDecipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
     let decrypted = decipher.update(encryptedText);
     decrypted = Buffer.concat([decrypted, decipher.final()]);
     return decrypted.toString();
@@ -51,7 +73,7 @@ function decF(val: any, type: 'string' | 'number' = 'string') {
   return type === 'number' ? Number(decrypted) : decrypted;
 }
 
-export interface User { id: string; username: string; passwordHash: string; }
+export interface User { id: string; username: string; passwordHash: string; salt: string; }
 export type IdentityType = 'PERSONAL' | 'SOLE_TRADER' | 'COMPANY';
 export type AccountingMethod = 'CASH' | 'ACCRUAL';
 export interface TaxIdentity { id: string; userId: string; name: string; type: IdentityType; accountingMethod: AccountingMethod; abn?: string; }
@@ -60,19 +82,38 @@ export interface InventoryItem { id: string; userId: string; identityId: string;
 export interface LearningRule { id: string; userId: string; identityId: string; pattern: string; category: string; taxCode: Transaction['taxCode']; }
 export interface BankAccount { id: string; userId: string; identityId: string; name: string; type: 'CHECKING' | 'SAVINGS' | 'CREDIT'; balance: number; currency: string; }
 
+// --- Password Hashing Utilities ---
+export function hashPassword(password: string): { hash: string; salt: string } {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+  return { hash, salt };
+}
+
+export function verifyPassword(password: string, hash: string, salt: string): boolean {
+  const hashVerify = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+  return hash === hashVerify;
+}
+
 // Init SQLite
 const sqlDb = new Database(SQLITE_FILE);
 
 sqlDb.pragma('journal_mode = WAL');
 
 sqlDb.exec(`
-  CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT, passwordHash TEXT);
+  CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT, passwordHash TEXT, salt TEXT);
   CREATE TABLE IF NOT EXISTS identities (id TEXT PRIMARY KEY, userId TEXT, name TEXT, type TEXT, accountingMethod TEXT, abn TEXT);
   CREATE TABLE IF NOT EXISTS transactions (id TEXT PRIMARY KEY, userId TEXT, identityId TEXT, date TEXT, description TEXT, amount TEXT, category TEXT, gstAmount TEXT, taxCode TEXT, status TEXT, currency TEXT, exchangeRate TEXT, originalAmount TEXT);
   CREATE TABLE IF NOT EXISTS rules (id TEXT PRIMARY KEY, userId TEXT, identityId TEXT, pattern TEXT, category TEXT, taxCode TEXT);
   CREATE TABLE IF NOT EXISTS inventory (id TEXT PRIMARY KEY, userId TEXT, identityId TEXT, name TEXT, sku TEXT, quantity INTEGER, costPrice TEXT, salePrice TEXT, category TEXT);
   CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, userId TEXT, identityId TEXT, name TEXT, type TEXT, balance TEXT, currency TEXT);
 `);
+
+// MIGRATION: Add salt column to existing users table if it doesn't exist
+const userCols = sqlDb.prepare('PRAGMA table_info(users)').all() as any[];
+if (!userCols.find(c => c.name === 'salt')) {
+  logger.info('Migrating users table to support password salts...');
+  sqlDb.exec('ALTER TABLE users ADD COLUMN salt TEXT DEFAULT ""');
+}
 
 // MIGRATION: If sqlite users is empty, but old db.json exists, migrate it
 const userCount = sqlDb.prepare('SELECT count(*) as count FROM users').get() as {count: number};
@@ -83,7 +124,7 @@ if (userCount.count === 0 && fs.existsSync(DB_FILE)) {
     const oldData = JSON.parse(decrypt(raw));
     
     sqlDb.transaction(() => {
-      const insUser = sqlDb.prepare('INSERT INTO users VALUES (?, ?, ?)');
+      const insUser = sqlDb.prepare('INSERT INTO users VALUES (?, ?, ?, "")');
       for (const u of (oldData.users || [])) insUser.run(u.id, u.username, u.passwordHash);
 
       const insId = sqlDb.prepare('INSERT INTO identities VALUES (?, ?, ?, ?, ?, ?)');
@@ -115,12 +156,15 @@ if (userCount.count === 0 && fs.existsSync(DB_FILE)) {
 export const db = {
   // Users
   getUsers: (): User[] => sqlDb.prepare('SELECT * FROM users').all() as User[],
-  addUser: (username: string, passwordHash: string) => {
+  addUser: (username: string, passwordHash: string, salt: string = "") => {
     const id = crypto.randomUUID();
-    sqlDb.prepare('INSERT INTO users VALUES (?, ?, ?)').run(id, username, passwordHash);
+    sqlDb.prepare('INSERT INTO users VALUES (?, ?, ?, ?)').run(id, username, passwordHash, salt);
     const idId = crypto.randomUUID();
     sqlDb.prepare('INSERT INTO identities VALUES (?, ?, ?, ?, ?, ?)').run(idId, id, 'Personal Wallet', 'PERSONAL', 'CASH', null);
-    return { id, username, passwordHash };
+    return { id, username, passwordHash, salt };
+  },
+  updateUserPassword: (id: string, passwordHash: string, salt: string) => {
+    sqlDb.prepare('UPDATE users SET passwordHash = ?, salt = ? WHERE id = ?').run(passwordHash, salt, id);
   },
 
   // Identities

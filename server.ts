@@ -1,10 +1,10 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
-import { GoogleGenAI } from '@google/genai';
-import { db } from './src/lib/sqlite_db.ts';
+import { db, hashPassword, verifyPassword } from './src/lib/sqlite_db.ts';
 import { logger } from './src/lib/logger.ts';
 import { parse } from 'csv-parse/sync';
 
@@ -26,6 +26,12 @@ async function startServer() {
   // Logging middleware
   app.use((req, res, next) => {
     logger.info(`${req.method} ${req.url}`);
+    if (process.env.DEBUG === 'true' && req.method !== 'GET') {
+      // Safely clone body to avoid logging sensitive passwords
+      const safeBody = { ...req.body };
+      if (safeBody.password) safeBody.password = '***';
+      logger.debug(`Payload Trace:`, safeBody);
+    }
     next();
   });
 
@@ -43,21 +49,58 @@ async function startServer() {
     next();
   };
 
-  // Auth Routes
-  app.post('/api/auth/register', (req, res) => {
-    const { username, password } = req.body;
-    if (db.getUsers().find(u => u.username === username)) {
-      return res.status(400).json({ error: 'User already exists' });
-    }
-    const newUser = db.addUser(username, password); // In production, hash this!
-    res.json(newUser);
+  // Rate Limiting for Auth
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // Limit each IP to 10 requests per `window` (here, per 15 minutes)
+    message: { error: 'Too many authentication attempts, please try again after 15 minutes' },
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   });
 
-  app.post('/api/auth/login', (req, res) => {
-    const { username, password } = req.body;
-    const user = db.getUsers().find(u => u.username === username && u.passwordHash === password);
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-    res.json(user);
+  // Auth Routes
+  app.post('/api/auth/register', authLimiter, (req, res, next) => {
+    try {
+      const { username, password } = req.body;
+      if (db.getUsers().find(u => u.username === username)) {
+        return res.status(400).json({ error: 'User already exists' });
+      }
+      const { hash, salt } = hashPassword(password);
+      const newUser = db.addUser(username, hash, salt);
+      // Return sanitized safe objects
+      res.json({ id: newUser.id, username: newUser.username });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post('/api/auth/login', authLimiter, (req, res, next) => {
+    try {
+      const { username, password } = req.body;
+      const user = db.getUsers().find(u => u.username === username);
+      if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+      
+      // Backward compat check: If salt is empty, it means legacy test plain text password
+      let isValid = false;
+      if (!user.salt) {
+        isValid = user.passwordHash === password;
+        if (isValid) {
+          // Opportunistic upgrade
+          const { hash, salt } = hashPassword(password);
+          db.updateUserPassword(user.id, hash, salt);
+          logger.audit('User logged in with legacy password. System successfully migrated their row to PBKDF2 parameters.');
+        }
+      } else {
+        isValid = verifyPassword(password, user.passwordHash, user.salt);
+      }
+      
+      if (!isValid) return res.status(401).json({ error: 'Invalid credentials' });
+      
+      // Safe response
+      res.json({ id: user.id, username: user.username });
+    } catch (err) {
+      next(err);
+    }
   });
 
   app.get('/api/users', (req, res) => {
@@ -267,33 +310,8 @@ async function startServer() {
     4. Always assume GST is 10% unless mentioned otherwise.
     5. Be helpful but never finalized tax advice; always suggest double-checking.`;
 
-    const GEMINI_KEY = process.env.GEMINI_API_KEY;
-
-    if (GEMINI_KEY) {
-      logger.info('Using Gemini for Accountant AI with Grounding');
-      const ai = new GoogleGenAI({ apiKey: GEMINI_KEY });
-      try {
-        const genRes = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
-          contents: prompt,
-          config: {
-            systemInstruction: systemPrompt,
-            tools: [{ googleSearch: {} }] // Enabled for up-to-date ATO legislation
-          }
-        });
-        
-        const responseData: any = { response: genRes.text };
-        if (genRes.candidates?.[0]?.groundingMetadata) {
-          responseData.groundingMetadata = genRes.candidates[0].groundingMetadata;
-        }
-
-        return res.json(responseData);
-      } catch (err) {
-        logger.error('Gemini Chat failed', err);
-      }
-    }
-
     try {
+      logger.info('Using Ollama for Local Accountant AI');
       const response = await fetch(`${OLLAMA_URL}/api/generate`, {
         method: 'POST',
         body: JSON.stringify({
@@ -305,6 +323,7 @@ async function startServer() {
         headers: { 'Content-Type': 'application/json' },
       });
       const data = await response.json();
+      logger.debug('Ollama response successful', { bytes: data.response?.length });
       res.json(data);
     } catch (err) {
       logger.error('Ollama Chat failed', err);
@@ -527,6 +546,12 @@ async function startServer() {
 
     return topSnippets.map(s => `[Source: ${s.source}]\n${s.text}`).join('\n\n');
   };
+
+  // Global Error Handler
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    logger.error('Unhandled Server Error', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  });
 
   // Vite integration
   if (process.env.NODE_ENV !== 'production') {
