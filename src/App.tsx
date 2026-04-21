@@ -498,7 +498,7 @@ export default function App() {
                         <p className="text-xs text-[#141414]/40 mb-4">Your accounting database is stored securely.</p>
                         <div className="flex gap-2">
                            <div className="text-xs font-mono bg-[#141414] text-white p-3 rounded-xl flex-1 truncate">
-                             {process.env.PWD}/data/db.json
+                             {window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? './data/localedger.db' : '/data/localedger.db'}
                            </div>
                            <button 
                              onClick={() => {

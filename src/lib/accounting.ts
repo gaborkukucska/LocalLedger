@@ -1,4 +1,4 @@
-import { Transaction, AccountingMethod } from './db.ts';
+import { Transaction, AccountingMethod } from './sqlite_db';
 
 export interface BASReport {
   period: string;
