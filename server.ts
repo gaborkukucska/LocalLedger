@@ -568,9 +568,22 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`LocaLedger running at http://localhost:${PORT}`);
-  });
+  const startPortFinder = (initialPort: number) => {
+    const serverConf = app.listen(initialPort, '0.0.0.0', () => {
+      console.log(`LocaLedger running at http://localhost:${initialPort}`);
+    });
+
+    serverConf.on('error', (err: any) => {
+      if (err.code === 'EADDRINUSE') {
+        console.warn(`[WARNING] Port ${initialPort} is in use, dynamically switching to ${initialPort + 1}...`);
+        startPortFinder(initialPort + 1);
+      } else {
+        console.error('Failed to start server:', err);
+      }
+    });
+  };
+
+  startPortFinder(typeof PORT === 'number' ? PORT : 3000);
 }
 
 startServer();
