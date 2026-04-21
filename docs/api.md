@@ -1,22 +1,50 @@
-# LocaLedger API Documentation
+# LocaLedger API Reference
 
-LocaLedger provides a standard REST API for integration with other financial systems.
+LocaLedger provides a standard REST API that interacts with the underlying `better-sqlite3` database. Due to its architecture, the application serves requests asynchronously but ensures all data is persistently hashed via column-level AES-256 encryption.
+
+---
+
+## Global Headers
+
+For all authenticated endpoints, the following custom headers are heavily enforced:
+
+| Header Name       | Purpose                                                    | Enforcement            |
+|-------------------|------------------------------------------------------------|------------------------|
+| `x-user-id`       | Determines the base user querying the endpoint.            | **Required**           |
+| `x-identity-id`   | Scopes queries to the specific sub-identity (Tax Profile). | **Required** on data*  |
+
+*\*Endpoints spanning cross-identities like `/api/identities` only strictly demand `x-user-id`.*
+
+---
 
 ## Endpoints
 
-### 1. Transactions
-- `GET /api/transactions`: Retrieve all transactions.
-- `POST /api/transactions`: Add a new transaction.
-- `PATCH /api/transactions/:id`: Update a transaction (categorization, status).
+### 1. Unified Authentication
+- `POST /api/auth/register` : Creates a user and wires up a base Personal Identity immediately. Needs `username` and `password`.
+- `POST /api/auth/login` : Returns an authenticated user payload if logic validates.
+- `GET /api/users` : Developer endpoint to list user stubs.
 
-### 2. AI & Rules
-- `GET /api/rules`: Retrieve all learning rules.
-- `POST /api/rules`: Create a new rule for automatic categorization.
-- `POST /api/ollama`: Proxy for local Ollama LLM interactions.
+### 2. Identity Management
+- `GET /api/identities` : Fetch all Tax Identities mapped against the current user ID.
+- `POST /api/identities` : Open a new business profile context (e.g., Sole Trader or Company). Takes `name`, `type`, `abn`, and `accountingMethod`.
 
-### 3. Import
-- `POST /api/import`: Import a CSV with mapping details.
+### 3. Ledger & Transactions
+- `GET /api/transactions` : Retrieves all transactions filtered to the scope of an `x-identity-id`. Decrypts column-level secured items seamlessly for the frontend.
+- `POST /api/transactions` : Ingest a solitary ledger row.
+- `PATCH /api/transactions/:id` : Used for editing `status` (pending → reconciled) or overriding the `category`. Triggers an internal Database audit log trace.
 
-## Security
-All API calls are local to the host. External access should be restricted via reverse proxy or firewall.
-Sensitive fields can be encrypted using the `security.ts` utility.
+### 4. Advanced AI & Conversational Search (RAG)
+- `POST /api/ai/chat` : Primary conversational backbone. Triggers Gemini 3.1 Flash or an `Ollama` fallback payload evaluated with historical `ledger` and `Rules` context.
+- `GET /api/knowledge` : Fetch system-indexed RAG embeddings and knowledge base `.md` context items.
+- `POST /api/knowledge/upload` : Drag and drop external `.txt`/`.md` files straight to your AI context cache.
+- `POST /api/ollama` : Standard text generation bridge used safely decoupled from public APIs.
+
+### 5. Learning Rules & Import Systems
+- `GET /api/rules` : Retrieve learned pattern-recognition logic strings.
+- `POST /api/rules` : Push a confirmed `Pattern -> Category` rule block back to the `SQLite` engine.
+- `POST /api/import` : Core ingestion engine. Receives CSV contents and executes an iteration logic that simultaneously applies currency conversions and your defined NLP `Rules` to pre-categorize inputs.
+
+---
+
+## Environment & Security Flags
+If `DB_ENCRYPTION_KEY` is present inside your Environment block (or `.env`), LocaLedger will aggressively convert Strings and Numbers targeting the DB using CBC padding mechanics. Changing the environment seed _after_ running your service will cause previously stored records to render as null.

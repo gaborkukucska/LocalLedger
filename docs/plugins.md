@@ -1,14 +1,30 @@
-# Plugin System Documentation
+# LocaLedger Plugin & Import System
 
-LocaLedger is designed to be highly modular.
+Because banks export CSV data using frustratingly varied formatting (different headers, different date styles), LocaLedger avoids hard-coding mappings. Instead, we use an open **Dynamic Plugin System**.
 
-## Creating a Plugin
-Plugins can be added by extending the `src/lib/` logic or adding new API routes in `server.ts`.
+## 1. Mapper Plugins
 
-### Core Extension Points
-1. **Import Mappers**: Custom logic for specific bank CSV formats.
-2. **AI Models**: Support for different local LLMs via the Ollama API.
-3. **Report Generators**: Beyond BAS, you can add custom P&L or specialized tax reports.
+A Mapper Plugin is a lightweight JSON schema that tells the LocaLedger engine how to parse an incoming CSV header. 
 
-## Connection to Banks
-Currently, manual CSV import is the primary method to ensure "on-premise" security. Auto-sync via third-party APIs (like Plaid or Salt Edge) is possible but would require an internet connection, violating the core local-first principle unless using a local connector.
+You can define mapper plugins manually by creating a `.json` file inside `data/plugins/mappers/` or use the dynamic UI on the **Bank Import** page inside the Application to generate and save one.
+
+### JSON Structure
+
+```json
+{
+  "name": "ANZ Checking",
+  "mapping": {
+    "date": "Processing Date",
+    "description": "Details",
+    "amount": "Credit/Debit Amount"
+  }
+}
+```
+
+LocaLedger automatically consumes this file. When the user sets "Bank Profile: ANZ Checking", the underlying engine pulls exactly those columns out safely.
+
+## 2. RAG Knowledge Expansion
+
+You don't need a plugin to make the AI Accountant smarter. You can simply drag and drop `.md` (Markdown) or `.txt` (Text) files describing your business logic straight to the **Knowledge Base** directory (`data/knowledge/`).
+
+The backend implements `fuse.js`. By simply dropping a text file (e.g., `freelance_rates.md`) in the folder, your AI accountant will read, parse, and instantly integrate those rules in discussions regarding categorization and accounting!

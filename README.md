@@ -1,37 +1,74 @@
-# 🇦🇺 LocaLedger 🦘
+# 🇦🇺 LocaLedger
 
-**Automated Bookkeeping for Humans. Private. Local. Fast.** 🚀
+**The Private, AI-Powered Offline Accountant for Australian Small Businesses** 🚀
 
-LocaLedger (LL) is like Xero, but it lives on your machine, respects your privacy, and uses local AI to do the boring stuff. 🏠💻
+LocaLedger is an open-source, local-first bookkeeping tool designed explicitly for freelancers, sole traders, and family households. By leveraging powerful local AI models (via Ollama) or hosted APIs (Gemini) alongside local SQLite column-level encryption, LocaLedger guarantees that your sensitive financial data **never leaves your machine** unless you explicitly allow it.
+
+## ✨ Features
+
+- **🛡️ 100% Local-First & Encrypted**: Your data is stored securely in a local `SQLite` database with AES-256 column-level encryption. No cloud, no subscription fees, no data harvesting.
+- **🤖 Private AI Accountant**: Powered by [Ollama](https://ollama.com) (or Gemini), the built-in conversational AI analyzes transactions, suggests categorization rules, and acts as your personal financial advisor using strict local RAG (Retrieval-Augmented Generation) running on `fuse.js`.
+- **🗂️ Multi-Identity Architecture**: Manage multiple Tax Identities (Personal, Sole Trader, Company), each securely segregated so your household and business finances never mix.
+- **🏦 CSV Bank Imports**: Import arbitrary bank statements. The AI evaluates mapping and auto-applies customized Learning Rules to categorize hundreds of rows instantly.
+- **⚡ Bulk Reconciliation & BAS**: Reconcile items efficiently with built-in ATO (Australian Tax Office) logic determining your GST calculations automatically.
+- **🌍 Dynamic Currency Conversion**: Handles multi-currency setups seamlessly via intelligent built-in exchange rate buffering with failovers.
+- **🐳 One-Click Docker Deploy**: Batteries included. Run both the app and the intelligent LLMs inside Docker.
 
 ---
 
-### ✨ Why you'll love it:
-- **👨‍👩‍👧‍👦 Family First**: Separate profiles for everyone in the house! 🏡
-- **🤖 GPT-at-Home**: Chat with your local AI accountant (Ollama) about your spending. 💬
-- **🔒 Ironclad Privacy**: Your data, your rules. No cloud. No tracking. 🛡️
-- **📦 Deploy in a Snap**: One-click Docker setup. 🐳
+## 🛠️ Quick Start & Installation
 
----
+### Option A: The Full Stack (Docker Compose)
+This is the recommended method to run LocaLedger alongside its private, offline AI instance.
 
-### 🛠️ Quick Start (1, 2, Click!)
-1. **Ollama**: Make sure [Ollama](https://ollama.com/) is running.
-2. **Run LL**: 
+1. Ensure [Docker & Docker Compose](https://docs.docker.com/get-docker/) are installed.
+2. Clone this repository.
+3. Bring everything up:
    ```bash
    docker-compose up -d
    ```
-3. **Profit**: Open `http://localhost:3000` and say hi to your new AI accountant! 👋
+4. Access the web interface at [http://localhost:3000](http://localhost:3000).
+
+*Note: The `docker-compose.yml` launches both LocaLedger and `ollama` concurrently, linking them intelligently out of the box!*
+
+### Option B: Native Node Setup
+If you want to run LocaLedger natively without Docker:
+
+1. **Prerequisites:** Node.js (v18+) and [Ollama](https://ollama.com/) (running on port `11434`).
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Establish your encryption parameters via a `.env` file:
+   ```env
+   # IMPORTANT: DB_ENCRYPTION_KEY must be exactly 32 bytes for AES-256
+   DB_ENCRYPTION_KEY=supersecretkey_change_me_in_prod_!
+   
+   # Optional: Provide Gemini API Key to upgrade your AI Accountant capabilities
+   GEMINI_API_KEY=your_google_ai_key
+   ```
+4. Start the development server:
+   ```bash
+   npm run dev
+   ```
+   Or build and run for production:
+   ```bash
+   npm run build
+   npm start
+   ```
 
 ---
 
-### 📖 Dive Deeper
-- [Full API Docs 🧾](./docs/api.md)
-- [Plugin System 🧩](./docs/plugins.md)
-- [Deployment Guide 🚀](./docs/deployment.md)
+## 📖 Deep Dives
+
+Want to contribute, audit security, or learn about the architecture? Check out the full documentation suite:
+- [API Reference 🧾](./docs/api.md)
+- [Deployment & Security Guide 🚀](./docs/deployment.md)
+- [Plugin System & Mapping 🧩](./docs/plugins.md)
 
 ---
 
-### 🇦🇺 ATO Ready?
-Yep! LL maps your GST and generates a **BAS Statement** that looks just like the real deal. Easy as! 🥧
+## 🇦🇺 Built for Compliance
+LocaLedger structures the Dashboard to closely track BAS requirements—including smart tax code assignments (`GST`, `FREE`, `ITS`, `EXM`). While LocaLedger aims to be highly accurate, **it does not replace certified tax advice**. Always verify outputs before submitting filings.
 
-Made with ❤️ for the Aussie small biz community. 🐨
+Made with ❤️ down under. 🦘
